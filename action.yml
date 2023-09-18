@@ -1,0 +1,107 @@
+name: "Prepare machine"
+description: "Prepare machine for building and publishing"
+
+inputs:
+  ssh_key:
+    description: "SSH key to use for the connection"
+    required: true
+  setup_android:
+    description: "Setup Android SDK"
+    required: false
+  setup_publish:
+    description: "Setup publishing"
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup SSH
+      shell: bash
+      env:
+        SSH_PRIVATE_KEY: ${{ inputs.ssh_key }}
+      run: |
+        mkdir -p ~/.ssh
+        echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Get flutter version
+      uses: kuhnroyal/flutter-fvm-config-action@v1
+
+    - name: Setup flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: ${{ env.FLUTTER_VERSION }}
+        channel: ${{ env.FLUTTER_CHANNEL }}
+        architecture: x64
+        cache: true
+        cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
+        cache-path: "${{ runner.tool_cache }}/flutter/:channel:-:version:-:arch:"
+
+    - name: "Cache flutter packages"
+      uses: actions/cache@v3
+      id: cache-flutter-packages
+      env:
+        cache-name: cache-flutter-os-packages
+      with:
+        path: /opt/hostedtoolcache/flutter
+        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/pubspec.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-build-${{ env.cache-name }}-
+
+    - name: Get flutter packages
+      shell: bash
+      if: steps.cache-flutter-packages.outputs.cache-hit != 'true'
+      run: flutter pub get
+
+    - name: Setup java
+      if: ${{ inputs.setup_android == 'true' }}
+      uses: actions/setup-java@v3.12.0
+      with:
+        distribution: zulu
+        java-version: 13.x
+        cache: gradle
+
+    - name: Setup Android SDK
+      if: ${{ inputs.setup_android == 'true' && inputs.setup_publish == 'true' }}
+      uses: android-actions/setup-android@v2
+
+    - name: Set up ruby env
+      if: ${{ inputs.setup_publish == 'true' }}
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: 3.0
+        bundler-cache: true
+
+    - name: Remove installed cocoapods
+      shell: bash
+      if: ${{ inputs.setup_publish == 'true' && inputs.setup_android == 'false' }}
+      run: |
+        gem uninstall cocoapods
+
+    - name: Install fastlane
+      shell: bash
+      if: ${{ inputs.setup_publish == 'true' }}
+      run: |
+        bundle install
+
+    - name: Install nodejs
+      if: ${{ inputs.setup_publish == 'true' }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: 16
+
+    - name: Install datadog-ci
+      shell: bash
+      if: ${{ inputs.setup_publish == 'true' }}
+      run: |
+        npm install -g @datadog/datadog-ci
+
+    - name: 🐦 Setup Shorebird
+      if: ${{ inputs.setup_publish == 'true' }}
+      uses: shorebirdtech/setup-shorebird@v0
+      with:
+        flutter-version: ${{ env.FLUTTER_VERSION }}
