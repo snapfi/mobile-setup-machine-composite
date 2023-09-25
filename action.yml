@@ -5,6 +5,9 @@ inputs:
   ssh_key:
     description: "SSH key to use for the connection"
     required: true
+  gh_pat:
+    description: "PAT token to use for the connection"
+    required: false
   setup_android:
     description: "Setup Android SDK"
     required: false
@@ -27,6 +30,8 @@ runs:
 
     - name: Checkout repository
       uses: actions/checkout@v3
+      with:
+        token: ${{ inputs.gh_pat }}
 
     - name: Get flutter version
       uses: kuhnroyal/flutter-fvm-config-action@v1
