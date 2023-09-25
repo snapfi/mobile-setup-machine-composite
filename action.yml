@@ -26,7 +26,7 @@ runs:
         ssh-keyscan github.com >> ~/.ssh/known_hosts
 
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v3
 
     - name: Get flutter version
       uses: kuhnroyal/flutter-fvm-config-action@v1
@@ -36,7 +36,6 @@ runs:
       with:
         flutter-version: ${{ env.FLUTTER_VERSION }}
         channel: ${{ env.FLUTTER_CHANNEL }}
-        architecture: x64
         cache: true
         cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
         cache-path: "${{ runner.tool_cache }}/flutter/:channel:-:version:-:arch:"
@@ -84,21 +83,15 @@ runs:
 
     - name: Install fastlane
       shell: bash
-      if: ${{ inputs.setup_publish == 'true' }}
+      if: ${{ inputs.setup_publish == 'true' && inputs.setup_android == 'false' }}
       run: |
-        bundle install
+        cd ios && bundle install
 
-    - name: Install nodejs
-      if: ${{ inputs.setup_publish == 'true' }}
-      uses: actions/setup-node@v3
-      with:
-        node-version: 16
-
-    - name: Install datadog-ci
+    - name: Install fastlane
       shell: bash
-      if: ${{ inputs.setup_publish == 'true' }}
+      if: ${{ inputs.setup_publish == 'true' && inputs.setup_android == 'true' }}
       run: |
-        npm install -g @datadog/datadog-ci
+        cd android && bundle install
 
     - name: 🐦 Setup Shorebird
       if: ${{ inputs.setup_publish == 'true' }}
